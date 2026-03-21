@@ -3,8 +3,8 @@ staticDir: static
 buildDir: build
 site:
   url: https://konstfish.github.io/pumice
-  ogImage: /pumice.png
-  favicon: /pumice.png
+  ogImage: /pumice.jpg
+  favicon: /pumice.jpg
 page:
   title: Pumice Documentation
 footer:
