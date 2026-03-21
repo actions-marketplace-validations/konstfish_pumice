@@ -55,18 +55,18 @@ func TestAnnotateInternalLinks(t *testing.T) {
 			contains: []string{`data-internal`},
 		},
 		{
-			name:  "bare relative path",
+			name:  "bare relative path (directory)",
 			input: `<a href="blog">blog</a>`,
 			contains: []string{
 				`data-internal`,
-				`hx-get="blog.html"`,
+				`hx-get="blog/index.html"`,
 				`hx-push-url="blog"`,
 			},
 		},
 		{
-			name:  "bare path with subdir",
+			name:  "bare path with subdir (directory)",
 			input: `<a href="blog/my-post">post</a>`,
-			contains: []string{`data-internal`, `hx-get="blog/my-post.html"`},
+			contains: []string{`data-internal`, `hx-get="blog/my-post/index.html"`},
 		},
 		{
 			name:     "pdf link not annotated",

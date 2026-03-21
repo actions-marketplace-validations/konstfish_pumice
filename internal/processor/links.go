@@ -33,10 +33,16 @@ func AnnotateInternalLinks(html string) string {
 			}
 		}
 
-		// hx-get needs .html suffix for static file fetching
+		// hx-get needs to resolve to an .html file for static file fetching
 		hxGet := href
 		if !strings.HasSuffix(hxGet, ".html") {
-			hxGet = hxGet + ".html"
+			if strings.HasPrefix(href, "./") || strings.HasPrefix(href, "../") {
+				// Wikilink-resolved paths (./page, ../dir/page) are always pages
+				hxGet = hxGet + ".html"
+			} else {
+				// Bare paths (blog, projects) are directory references
+				hxGet = hxGet + "/index.html"
+			}
 		}
 
 		return `<a href="` + href + `"` +
