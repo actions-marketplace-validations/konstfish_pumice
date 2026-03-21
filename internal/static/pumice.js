@@ -171,10 +171,18 @@
             Prism.highlightAllUnder(content);
         }
 
-        if (window.mermaid) {
-            var charts = content.querySelectorAll('.mermaid');
-            if (charts.length > 0) {
+        var charts = content.querySelectorAll('.mermaid');
+        if (charts.length > 0) {
+            if (window.mermaid) {
                 mermaid.run({ nodes: charts });
+            } else {
+                var s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js';
+                s.onload = function () {
+                    mermaid.initialize({ startOnLoad: false });
+                    mermaid.run({ nodes: charts });
+                };
+                document.head.appendChild(s);
             }
         }
 
