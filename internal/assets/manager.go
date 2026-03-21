@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/konstfish/pumice/internal/static"
 	ui "github.com/konstfish/ui/core"
 )
 
 type Manager struct {
 	buildDir      string
-	staticDir     string
 	basePath      string
 	fileCollector FileCollectorInterface
 }
@@ -22,48 +22,40 @@ type FileCollectorInterface interface {
 	IsFileReferenced(path string) bool
 }
 
-func NewManager(buildDir, staticDir, basePath string, fileCollector FileCollectorInterface) *Manager {
+func NewManager(buildDir, basePath string, fileCollector FileCollectorInterface) *Manager {
 	return &Manager{
 		buildDir:      buildDir,
-		staticDir:     staticDir,
 		basePath:      basePath,
 		fileCollector: fileCollector,
 	}
 }
 
 func (m *Manager) CopyStaticAssets() error {
-	if _, err := os.Stat(m.staticDir); os.IsNotExist(err) {
-		return nil
-	}
-
 	pumiceDir := filepath.Join(m.buildDir, "_pumice")
 	if err := os.MkdirAll(pumiceDir, 0755); err != nil {
 		return fmt.Errorf("creating _pumice directory: %w", err)
 	}
 
-	return filepath.WalkDir(m.staticDir, func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(static.Files, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-
 		if d.IsDir() {
 			return nil
 		}
 
-		relPath, err := filepath.Rel(m.staticDir, path)
+		data, err := static.Files.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("getting relative path for %s: %w", path, err)
+			return fmt.Errorf("reading embedded file %s: %w", path, err)
 		}
 
-		outputPath := filepath.Join(pumiceDir, relPath)
-		outputDir := filepath.Dir(outputPath)
-
-		if err := os.MkdirAll(outputDir, 0755); err != nil {
-			return fmt.Errorf("creating output directory %s: %w", outputDir, err)
+		outputPath := filepath.Join(pumiceDir, path)
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			return fmt.Errorf("creating directory for %s: %w", outputPath, err)
 		}
 
-		if err := m.copyFile(path, outputPath); err != nil {
-			return err
+		if err := os.WriteFile(outputPath, data, 0644); err != nil {
+			return fmt.Errorf("writing %s: %w", outputPath, err)
 		}
 
 		fmt.Printf("Copied static: %s\n", outputPath)
@@ -72,24 +64,15 @@ func (m *Manager) CopyStaticAssets() error {
 }
 
 func (m *Manager) AddStaticAssetsToPage(page *ui.Page) error {
-	if _, err := os.Stat(m.staticDir); os.IsNotExist(err) {
-		return nil
-	}
-
-	return filepath.WalkDir(m.staticDir, func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(static.Files, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-
 		if d.IsDir() {
 			return nil
 		}
 
-		relPath, err := filepath.Rel(m.staticDir, path)
-		if err != nil {
-			return fmt.Errorf("getting relative path for %s: %w", path, err)
-		}
-		assetPath := m.basePath + "/_pumice/" + relPath
+		assetPath := m.basePath + "/_pumice/" + path
 
 		if strings.HasSuffix(path, ".css") {
 			page.AddStyleSheet(assetPath)

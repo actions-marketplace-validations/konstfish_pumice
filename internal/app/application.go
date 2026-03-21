@@ -49,13 +49,12 @@ func (a *Application) GetPort() string {
 func (a *Application) initializeBuildComponents() {
 	contentDir := a.configManager.GetContentDir()
 	buildDir := a.configManager.GetBuildDir()
-	staticDir := "internal/static"
 
 	a.fileCollector = collector.NewFileCollector(contentDir)
 	
 	a.linkResolver = resolver.NewLinkResolver(contentDir, buildDir, a.fileCollector)
 	
-	a.assetManager = assets.NewManager(buildDir, staticDir, a.configManager.GetBasePath(), a.fileCollector)
+	a.assetManager = assets.NewManager(buildDir, a.configManager.GetBasePath(), a.fileCollector)
 	
 	a.markdownProcessor = processor.NewMarkdownProcessor(a.linkResolver)
 	
