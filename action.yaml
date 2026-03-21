@@ -1,0 +1,29 @@
+name: 'Build Pumice Site'
+description: 'Build a static site from Obsidian-flavored Markdown using Pumice'
+author: 'konstfish'
+branding:
+  icon: 'book-open'
+  color: 'blue'
+inputs:
+  source:
+    description: 'Content directory'
+    required: false
+    default: ./
+  destination:
+    description: 'Output directory'
+    required: false
+    default: ./_site
+  title:
+    description: 'Site title'
+    required: false
+    default: Pumice
+  config:
+    description: 'Path to pumice.yaml config file (overrides other inputs)'
+    required: false
+  static:
+    description: 'Static files directory'
+    required: false
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

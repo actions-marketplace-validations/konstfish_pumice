@@ -1,4 +1,4 @@
-FROM golang:1.24.2-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -9,10 +9,11 @@ COPY internal/ ./internal/
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /pumice
 
-FROM scratch
+FROM alpine:3.21
 
 COPY --from=builder /pumice /usr/local/bin/pumice
+COPY --chmod=755 entrypoint.sh /
 
 WORKDIR /site
 
-ENTRYPOINT [ "pumice" ]
+ENTRYPOINT [ "/entrypoint.sh" ]
