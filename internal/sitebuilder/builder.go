@@ -22,6 +22,7 @@ type SiteBuilder struct {
 	staticDir         string
 	siteURL           string
 	siteTitle         string
+	basePath          string
 	fileCollector     FileCollectorInterface
 	linkResolver      LinkResolverInterface
 	assetManager      AssetManagerInterface
@@ -55,7 +56,7 @@ type PageRendererInterface interface {
 	RenderPage(htmlContent, outputPath string, meta *types.PageMetadata) error
 }
 
-func NewSiteBuilder(contentDir, buildDir, staticDir, siteURL, siteTitle string,
+func NewSiteBuilder(contentDir, buildDir, staticDir, siteURL, siteTitle, basePath string,
 	fileCollector FileCollectorInterface,
 	linkResolver LinkResolverInterface,
 	assetManager AssetManagerInterface,
@@ -68,6 +69,7 @@ func NewSiteBuilder(contentDir, buildDir, staticDir, siteURL, siteTitle string,
 		staticDir:         staticDir,
 		siteURL:           strings.TrimRight(siteURL, "/"),
 		siteTitle:         siteTitle,
+		basePath:          basePath,
 		fileCollector:     fileCollector,
 		linkResolver:      linkResolver,
 		assetManager:      assetManager,
@@ -313,7 +315,7 @@ func (sb *SiteBuilder) renderBacklinks(bl []pageEntry, currentSlug string) strin
 	var buf strings.Builder
 	buf.WriteString(`<div class="backlinks"><h3>Backlinks</h3><ul>`)
 	for _, b := range unique {
-		absPath := "/" + strings.TrimSuffix(b.HtmlPath, ".html")
+		absPath := sb.basePath + "/" + strings.TrimSuffix(b.HtmlPath, ".html")
 		absHtml := absPath + ".html"
 		buf.WriteString(`<li><a href="`)
 		buf.WriteString(absPath)
@@ -495,7 +497,7 @@ func (sb *SiteBuilder) generateTagIndex(tagPages map[string][]pageEntry) error {
 	buf.WriteString(`<div class="tag-index">`)
 	for _, tc := range tags {
 		tagSlug := slug.Slugify(tc.Tag)
-		absPath := "/tags/" + tagSlug
+		absPath := sb.basePath + "/tags/" + tagSlug
 		buf.WriteString(`<a href="`)
 		buf.WriteString(absPath)
 		buf.WriteString(`" data-internal hx-get="`)
@@ -670,7 +672,7 @@ func (sb *SiteBuilder) generate404() error {
 	htmlContent := `<div class="not-found">` +
 		`<h2>Page not found</h2>` +
 		`<p>The page you're looking for doesn't exist or has been moved.</p>` +
-		`<p><a href="/" data-internal hx-get="/index.html" hx-target="#content" hx-select="#content" hx-swap="outerHTML transition:true" hx-push-url="/">← Back to home</a></p>` +
+		`<p><a href="` + sb.basePath + `/" data-internal hx-get="` + sb.basePath + `/index.html" hx-target="#content" hx-select="#content" hx-swap="outerHTML transition:true" hx-push-url="` + sb.basePath + `/">← Back to home</a></p>` +
 		`</div>`
 
 	outputPath := filepath.Join(sb.buildDir, "404.html")
@@ -704,7 +706,7 @@ func (sb *SiteBuilder) renderListing(dir string, entries []pageEntry) string {
 
 	for _, entry := range entries {
 		entrySlug := strings.TrimSuffix(filepath.Base(entry.HtmlPath), ".html")
-		absPath := "/" + strings.TrimSuffix(entry.HtmlPath, ".html")
+		absPath := sb.basePath + "/" + strings.TrimSuffix(entry.HtmlPath, ".html")
 		absHtml := absPath + ".html"
 		_ = entrySlug
 

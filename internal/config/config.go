@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -176,6 +177,25 @@ func (m *Manager) GetBuildDir() string {
 
 func (m *Manager) GetSiteURL() string {
 	return m.GetConfig().Site.URL
+}
+
+func (m *Manager) GetBasePath() string {
+	u := m.GetConfig().Site.URL
+	if u == "" {
+		return ""
+	}
+	// Extract path from URL: "https://foo.github.io/pumice" -> "/pumice"
+	// Strip scheme
+	after := u
+	if idx := strings.Index(after, "://"); idx != -1 {
+		after = after[idx+3:]
+	}
+	// Strip host
+	if idx := strings.Index(after, "/"); idx != -1 {
+		bp := after[idx:]
+		return strings.TrimRight(bp, "/")
+	}
+	return ""
 }
 
 func (m *Manager) GetOGImage() string {

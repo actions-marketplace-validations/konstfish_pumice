@@ -55,7 +55,7 @@ func (a *Application) initializeBuildComponents() {
 	
 	a.linkResolver = resolver.NewLinkResolver(contentDir, buildDir, a.fileCollector)
 	
-	a.assetManager = assets.NewManager(buildDir, staticDir, a.fileCollector)
+	a.assetManager = assets.NewManager(buildDir, staticDir, a.configManager.GetBasePath(), a.fileCollector)
 	
 	a.markdownProcessor = processor.NewMarkdownProcessor(a.linkResolver)
 	
@@ -67,6 +67,7 @@ func (a *Application) initializeBuildComponents() {
 		a.configManager.GetStaticDir(),
 		a.configManager.GetSiteURL(),
 		a.configManager.GetPageTitle(),
+		a.configManager.GetBasePath(),
 		a.fileCollector,
 		a.linkResolver,
 		a.assetManager,

@@ -14,6 +14,7 @@ import (
 type Manager struct {
 	buildDir      string
 	staticDir     string
+	basePath      string
 	fileCollector FileCollectorInterface
 }
 
@@ -21,10 +22,11 @@ type FileCollectorInterface interface {
 	IsFileReferenced(path string) bool
 }
 
-func NewManager(buildDir, staticDir string, fileCollector FileCollectorInterface) *Manager {
+func NewManager(buildDir, staticDir, basePath string, fileCollector FileCollectorInterface) *Manager {
 	return &Manager{
 		buildDir:      buildDir,
 		staticDir:     staticDir,
+		basePath:      basePath,
 		fileCollector: fileCollector,
 	}
 }
@@ -87,7 +89,7 @@ func (m *Manager) AddStaticAssetsToPage(page *ui.Page) error {
 		if err != nil {
 			return fmt.Errorf("getting relative path for %s: %w", path, err)
 		}
-		assetPath := "/_pumice/" + relPath
+		assetPath := m.basePath + "/_pumice/" + relPath
 
 		if strings.HasSuffix(path, ".css") {
 			page.AddStyleSheet(assetPath)

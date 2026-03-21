@@ -21,6 +21,7 @@ type PageRenderer struct {
 type ConfigManagerInterface interface {
 	GetPageTitle() string
 	GetSiteURL() string
+	GetBasePath() string
 	GetOGImage() string
 	GetFavicon() string
 	GetFooter() config.FooterConfig
@@ -89,8 +90,9 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 			SetAttribute("content", ogImage))
 	}
 
+	basePath := pr.configManager.GetBasePath()
+
 	if favicon := pr.configManager.GetFavicon(); favicon != "" {
-		// Detect type from extension
 		faviconType := "image/x-icon"
 		switch {
 		case strings.HasSuffix(favicon, ".svg"):
@@ -98,7 +100,7 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 		case strings.HasSuffix(favicon, ".png"):
 			faviconType = "image/png"
 		}
-		page.AddLinkWithType("icon", favicon, faviconType)
+		page.AddLinkWithType("icon", basePath+favicon, faviconType)
 	}
 
 	pr.addExternalAssets(page, htmlContent)
