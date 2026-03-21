@@ -92,8 +92,11 @@ func (mp *MarkdownProcessor) ProcessFile(path, contentDir, buildDir string, reso
 	// Extract metadata from frontmatter
 	pageMeta := extractMetadata(ctx, string(content))
 
+	// Strip goldmark-mermaid's injected scripts (we handle loading/init ourselves)
+	html := StripMermaidScripts(buf.String())
+
 	// Transform Obsidian-style callouts
-	html := ProcessCallouts(buf.String())
+	html = ProcessCallouts(html)
 
 	// Fix bare image filenames (Obsidian vault search behavior)
 	html = ResolveImagePaths(html, path, contentDir, outputDir)
