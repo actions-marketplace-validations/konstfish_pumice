@@ -1,0 +1,23 @@
+contentDir: content
+staticDir: static
+buildDir: build
+site:
+  url: https://konstfish.github.io/pumice
+  ogImage: /pumice.png
+  favicon: /pumice.png
+page:
+  title: Pumice Documentation
+footer:
+  text: "Text"
+  links:
+    - text: GitHub
+      url: https://github.com/konstfish/pumice
+    - text: RSS
+      url: /feed.xml
+giscus: {}
+  #repo: 
+  #repoId: 
+  #category: 
+  #categoryId: 
+  #mapping: pathname
+  #lang: en
