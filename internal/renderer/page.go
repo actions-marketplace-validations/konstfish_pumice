@@ -250,13 +250,13 @@ func (pr *PageRenderer) renderGiscus() *ui.Element {
 }
 
 func (pr *PageRenderer) addExternalAssets(page *ui.Page, htmlContent string) {
-	page.AddStyleSheet("https://cdn.jsdelivr.net/gh/konstfish/ui@main/static/main.css")
-	page.AddStyleSheet("https://cdn.jsdelivr.net/gh/konstfish/ui@main/static/prism.css")
+	page.AddStyleSheet("https://cdn.jsdelivr.net/gh/konstfish/ui@0.0.2/static/main.css")
+	page.AddStyleSheet("https://cdn.jsdelivr.net/gh/konstfish/ui@0.0.2/static/prism.css")
 	// pumice.css is auto-added by assetManager.AddStaticAssetsToPage
 	if strings.Contains(htmlContent, `class="mermaid"`) {
-		page.AddScript("https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js")
+		page.AddScript("https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js")
 	}
-	page.AddScript("https://unpkg.com/htmx.org@2.0.4")
+	page.AddScript("https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js")
 	page.AddScript("https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js")
 	page.AddScript("https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js")
 	page.AddStyleSheet("https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css")
