@@ -72,11 +72,8 @@
     }
 
     function fetchPreview(link) {
-        var href = link.getAttribute('href');
-        var fetchUrl = href;
-        if (!fetchUrl.endsWith('.html')) {
-            fetchUrl = fetchUrl + '.html';
-        }
+        var fetchUrl = link.getAttribute('hx-get');
+        if (!fetchUrl) return;
 
         if (previewCache[fetchUrl]) {
             if (currentLink === link) {
