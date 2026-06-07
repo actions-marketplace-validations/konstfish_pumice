@@ -21,6 +21,7 @@ type PageRenderer struct {
 type ConfigManagerInterface interface {
 	GetPageTitle() string
 	GetSiteURL() string
+	GetBuildDir() string
 	GetBasePath() string
 	GetOGImage() string
 	GetFavicon() string
@@ -62,32 +63,73 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 	page := ui.NewPage()
 	page.SetTitle(tabTitle)
 
-	// OG meta tags
-	page.Head.AddChild(ui.NewElement("meta").
-		SetAttribute("property", "og:title").
-		SetAttribute("content", displayTitle))
+	siteURL := pr.configManager.GetSiteURL()
+	siteName := pr.configManager.GetPageTitle()
 
+	// Description: explicit socialDescription, else a sensible fallback.
+	description := displayTitle + " - " + siteName
 	if meta != nil && meta.SocialDescription != "" {
-		page.AddMeta("description", meta.SocialDescription)
-		page.Head.AddChild(ui.NewElement("meta").
-			SetAttribute("property", "og:description").
-			SetAttribute("content", meta.SocialDescription))
-	} else {
-		page.AddMeta("description", displayTitle+" - "+pr.configManager.GetPageTitle())
+		description = meta.SocialDescription
+	}
+	page.AddMeta("description", description)
+
+	// Canonical / og:url — the page's absolute address.
+	canonical := pr.canonicalURL(outputPath, siteURL)
+	if canonical != "" {
+		page.AddLink("canonical", canonical)
 	}
 
-	page.Head.AddChild(ui.NewElement("meta").
-		SetAttribute("property", "og:type").
-		SetAttribute("content", "article"))
+	// Absolute OG image URL.
+	ogImage := pr.configManager.GetOGImage()
+	if ogImage != "" && siteURL != "" && !strings.HasPrefix(ogImage, "http") {
+		ogImage = strings.TrimRight(siteURL, "/") + "/" + strings.TrimLeft(ogImage, "/")
+	}
 
-	if ogImage := pr.configManager.GetOGImage(); ogImage != "" {
-		// Make absolute if site URL is set
-		if siteURL := pr.configManager.GetSiteURL(); siteURL != "" && !strings.HasPrefix(ogImage, "http") {
-			ogImage = strings.TrimRight(siteURL, "/") + "/" + strings.TrimLeft(ogImage, "/")
+	// Dated content is an "article"; everything else (home, listings, tags) a "website".
+	ogType := "website"
+	if meta != nil && meta.Date != "" {
+		ogType = "article"
+	}
+
+	// Open Graph tags.
+	addProperty := func(property, content string) {
+		if content == "" {
+			return
 		}
 		page.Head.AddChild(ui.NewElement("meta").
-			SetAttribute("property", "og:image").
-			SetAttribute("content", ogImage))
+			SetAttribute("property", property).
+			SetAttribute("content", content))
+	}
+	addProperty("og:title", displayTitle)
+	addProperty("og:description", description)
+	addProperty("og:type", ogType)
+	addProperty("og:site_name", siteName)
+	addProperty("og:url", canonical)
+	addProperty("og:image", ogImage)
+	if ogType == "article" {
+		if t, ok := types.ParseDate(meta.Date); ok {
+			addProperty("article:published_time", t.Format("2006-01-02"))
+		}
+	}
+
+	// Twitter Card tags.
+	twitterCard := "summary"
+	if ogImage != "" {
+		twitterCard = "summary_large_image"
+	}
+	page.AddMeta("twitter:card", twitterCard)
+	page.AddMeta("twitter:title", displayTitle)
+	page.AddMeta("twitter:description", description)
+	if ogImage != "" {
+		page.AddMeta("twitter:image", ogImage)
+		// og:image:alt aids both Twitter/X cards and accessibility.
+		addProperty("og:image:alt", description)
+	}
+	if canonical != "" {
+		page.AddMeta("twitter:url", canonical)
+	}
+	if domain := urlHost(siteURL); domain != "" {
+		page.AddMeta("twitter:domain", domain)
 	}
 
 	basePath := pr.configManager.GetBasePath()
@@ -183,6 +225,45 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 
 	fmt.Printf("Generated: %s\n", outputPath)
 	return nil
+}
+
+// urlHost extracts the bare host (no scheme, no path) from a site URL, e.g.
+// "https://konst.fish/blog" -> "konst.fish". Used for twitter:domain.
+func urlHost(siteURL string) string {
+	host := siteURL
+	if idx := strings.Index(host, "://"); idx != -1 {
+		host = host[idx+3:]
+	}
+	if idx := strings.Index(host, "/"); idx != -1 {
+		host = host[:idx]
+	}
+	return host
+}
+
+// canonicalURL derives a page's absolute URL from its output path. Directory
+// index pages map to the directory URL (with trailing slash); other pages drop
+// the .html extension. Returns "" when no site URL is configured.
+func (pr *PageRenderer) canonicalURL(outputPath, siteURL string) string {
+	if siteURL == "" {
+		return ""
+	}
+
+	rel, err := filepath.Rel(pr.configManager.GetBuildDir(), outputPath)
+	if err != nil {
+		return ""
+	}
+
+	urlPath := strings.TrimSuffix(filepath.ToSlash(rel), ".html")
+	base := strings.TrimRight(siteURL, "/")
+
+	switch {
+	case urlPath == "index":
+		return base + "/"
+	case strings.HasSuffix(urlPath, "/index"):
+		return base + "/" + strings.TrimSuffix(urlPath, "index")
+	default:
+		return base + "/" + urlPath
+	}
 }
 
 func (pr *PageRenderer) renderFooter() *ui.Element {
