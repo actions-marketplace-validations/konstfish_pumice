@@ -79,12 +79,12 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 	siteURL := pr.configManager.GetSiteURL()
 	siteName := pr.configManager.GetPageTitle()
 
-	// Description: explicit socialDescription, else a sensible fallback.
-	description := displayTitle + " - " + siteName
+	// Description: only emit when explicitly provided via frontmatter.
+	description := ""
 	if meta != nil && meta.SocialDescription != "" {
 		description = meta.SocialDescription
+		page.AddMeta("description", description)
 	}
-	page.AddMeta("description", description)
 
 	// Canonical / og:url — the page's absolute address.
 	canonical := pr.canonicalURL(outputPath, siteURL)
@@ -137,7 +137,9 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 	}
 	page.AddMeta("twitter:card", twitterCard)
 	page.AddMeta("twitter:title", displayTitle)
-	page.AddMeta("twitter:description", description)
+	if description != "" {
+		page.AddMeta("twitter:description", description)
+	}
 	if ogImage != "" {
 		page.AddMeta("twitter:image", ogImage)
 		// og:image:alt aids both Twitter/X cards and accessibility.
