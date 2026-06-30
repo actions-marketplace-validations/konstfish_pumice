@@ -822,14 +822,15 @@ func (sb *SiteBuilder) renderListing(dir string, entries []pageEntry) string {
 		buf.WriteString(processor.EscapeHTML(entry.Title))
 		buf.WriteString(`</span></a>`)
 
-		if entry.Date != "" || len(entry.Tags) > 0 {
+		visibleTags := slug.VisibleTags(dir, entry.Tags)
+		if entry.Date != "" || len(visibleTags) > 0 {
 			buf.WriteString(`<div class="listing-meta">`)
 			if entry.Date != "" {
 				buf.WriteString(`<span class="listing-date">`)
 				buf.WriteString(entry.Date)
 				buf.WriteString(`</span>`)
 			}
-			for _, tag := range entry.Tags {
+			for _, tag := range visibleTags {
 				buf.WriteString(`<code class="page-tag">`)
 				buf.WriteString(processor.EscapeHTML(tag))
 				buf.WriteString(`</code>`)

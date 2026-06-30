@@ -3,4 +3,4 @@ build/*
 !build
 content_blog
 TODOs.md
-pumice.other.yaml
+pumice.*.yaml

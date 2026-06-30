@@ -10,6 +10,7 @@ type PageMetadata struct {
 	Tags              []string
 	ReadingTime       int
 	SocialDescription string
+	GenerateThumbnail bool // opt-in: render a per-page OG card for this page
 }
 
 // dateLayouts lists the frontmatter date formats pumice accepts, in priority

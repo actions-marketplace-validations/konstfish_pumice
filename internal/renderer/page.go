@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/konstfish/pumice/internal/config"
+	"github.com/konstfish/pumice/internal/ogimage"
+	"github.com/konstfish/pumice/internal/slug"
 	"github.com/konstfish/pumice/internal/types"
 	ui "github.com/konstfish/ui/core"
 	"github.com/konstfish/ui/themes/kf"
@@ -16,6 +18,7 @@ import (
 type PageRenderer struct {
 	configManager ConfigManagerInterface
 	assetManager  AssetManagerInterface
+	ogGenerator   *ogimage.Generator
 }
 
 type ConfigManagerInterface interface {
@@ -34,10 +37,20 @@ type AssetManagerInterface interface {
 }
 
 func NewPageRenderer(configManager ConfigManagerInterface, assetManager AssetManagerInterface) *PageRenderer {
-	return &PageRenderer{
+	pr := &PageRenderer{
 		configManager: configManager,
 		assetManager:  assetManager,
 	}
+
+	// The OG-card generator embeds its fonts, so this only fails on a corrupt
+	// build. Degrade gracefully to the static site-wide image if so.
+	if gen, err := ogimage.New(); err != nil {
+		fmt.Printf("Warning: OG image generator unavailable: %v\n", err)
+	} else {
+		pr.ogGenerator = gen
+	}
+
+	return pr
 }
 
 func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.PageMetadata) error {
@@ -79,10 +92,15 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 		page.AddLink("canonical", canonical)
 	}
 
-	// Absolute OG image URL.
+	// Absolute OG image URL — site-wide config value is the fallback.
 	ogImage := pr.configManager.GetOGImage()
 	if ogImage != "" && siteURL != "" && !strings.HasPrefix(ogImage, "http") {
 		ogImage = strings.TrimRight(siteURL, "/") + "/" + strings.TrimLeft(ogImage, "/")
+	}
+
+	// Per-page generated card overrides the fallback when enabled.
+	if generated := pr.generateOGCard(outputPath, displayTitle, meta); generated != "" {
+		ogImage = generated
 	}
 
 	// Dated content is an "article"; everything else (home, listings, tags) a "website".
@@ -225,6 +243,43 @@ func (pr *PageRenderer) RenderPage(htmlContent, outputPath string, meta *types.P
 
 	fmt.Printf("Generated: %s\n", outputPath)
 	return nil
+}
+
+// generateOGCard renders a per-page OG card PNG under <buildDir>/og/, mirroring
+// the page's path, and returns its absolute URL. Returns "" (so the caller keeps
+// the fallback image) when generation is disabled, unconfigured, or fails.
+func (pr *PageRenderer) generateOGCard(outputPath, title string, meta *types.PageMetadata) string {
+	// Generation is opt-in per page via frontmatter `generateThumbnail: true`.
+	if pr.ogGenerator == nil || meta == nil || !meta.GenerateThumbnail {
+		return ""
+	}
+	siteURL := pr.configManager.GetSiteURL()
+	if siteURL == "" {
+		return ""
+	}
+
+	rel, err := filepath.Rel(pr.configManager.GetBuildDir(), outputPath)
+	if err != nil {
+		return ""
+	}
+	pngRel := strings.TrimSuffix(filepath.ToSlash(rel), ".html") + ".png"
+	pngPath := filepath.Join(pr.configManager.GetBuildDir(), "og", filepath.FromSlash(pngRel))
+
+	// Drop a tag made redundant by the containing folder (e.g. "blog" on a page
+	// under blog/), matching the listing behaviour.
+	card := ogimage.Card{
+		Site:        urlHost(siteURL),
+		Title:       title,
+		Tags:        slug.VisibleTags(filepath.Dir(rel), meta.Tags),
+		Date:        meta.Date,
+		ReadingTime: meta.ReadingTime,
+	}
+
+	if err := pr.ogGenerator.Save(card, pngPath); err != nil {
+		fmt.Printf("Warning: generating OG image for %s: %v\n", outputPath, err)
+		return ""
+	}
+	return strings.TrimRight(siteURL, "/") + "/og/" + pngRel
 }
 
 // urlHost extracts the bare host (no scheme, no path) from a site URL, e.g.

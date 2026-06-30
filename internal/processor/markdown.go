@@ -150,6 +150,12 @@ func extractMetadata(ctx parser.Context, rawContent string) *PageMetadata {
 		}
 	}
 
+	if thumb, ok := metaData["generateThumbnail"]; ok {
+		if b, ok := thumb.(bool); ok {
+			pm.GenerateThumbnail = b
+		}
+	}
+
 	if tags, ok := metaData["tags"]; ok {
 		if tagList, ok := tags.([]interface{}); ok {
 			for _, t := range tagList {
@@ -164,4 +170,3 @@ func extractMetadata(ctx parser.Context, rawContent string) *PageMetadata {
 
 	return pm
 }
-
