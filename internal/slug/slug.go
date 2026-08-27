@@ -1,6 +1,9 @@
 package slug
 
-import "strings"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // Slugify converts a string into a URL-friendly slug.
 func Slugify(text string) string {
@@ -19,4 +22,33 @@ func Slugify(text string) string {
 	}
 	slug = strings.Trim(slug, "-")
 	return slug
+}
+
+// HiddenTagSlug returns the slug of a directory's base name, or "" for the
+// root. A tag whose slug equals this is redundant inside that directory (e.g.
+// the "blog" tag on pages under a "blog/" folder) and is hidden from listings
+// and OG cards.
+func HiddenTagSlug(dir string) string {
+	cleanDir := filepath.Clean(dir)
+	if cleanDir == "." || cleanDir == string(filepath.Separator) {
+		return ""
+	}
+	return Slugify(filepath.Base(cleanDir))
+}
+
+// VisibleTags drops any tag made redundant by the containing directory name.
+func VisibleTags(dir string, tags []string) []string {
+	hiddenSlug := HiddenTagSlug(dir)
+	if hiddenSlug == "" {
+		return tags
+	}
+
+	visible := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if Slugify(tag) == hiddenSlug {
+			continue
+		}
+		visible = append(visible, tag)
+	}
+	return visible
 }

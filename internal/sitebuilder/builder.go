@@ -3,6 +3,7 @@ package sitebuilder
 import (
 	"encoding/xml"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"os"
@@ -242,6 +243,11 @@ func (sb *SiteBuilder) Build() error {
 
 	// ── Generate sitemap ─────────────────────────────────────────
 	if err := sb.generateSitemap(pages); err != nil {
+		return err
+	}
+
+	// ── Generate robots.txt ──────────────────────────────────────
+	if err := sb.generateRobots(); err != nil {
 		return err
 	}
 
@@ -523,25 +529,50 @@ func (sb *SiteBuilder) generateTagIndex(tagPages map[string][]pageEntry) error {
 
 // ── RSS feeds ────────────────────────────────────────────────────
 
+// atomLink is the rel="self" reference that feed validators expect. Encoded
+// with a literal "atom:" prefix; the namespace is declared on the <rss> root.
+type atomLink struct {
+	XMLName xml.Name `xml:"atom:link"`
+	Href    string   `xml:"href,attr"`
+	Rel     string   `xml:"rel,attr"`
+	Type    string   `xml:"type,attr"`
+}
+
+type rssGUID struct {
+	Value       string `xml:",chardata"`
+	IsPermaLink bool   `xml:"isPermaLink,attr"`
+}
+
+// cdata wraps a string so encoding/xml emits it inside a CDATA section.
+type cdata struct {
+	Value string `xml:",cdata"`
+}
+
 type rssChannel struct {
-	XMLName     xml.Name  `xml:"channel"`
-	Title       string    `xml:"title"`
-	Link        string    `xml:"link"`
-	Description string    `xml:"description"`
-	PubDate     string    `xml:"pubDate,omitempty"`
-	Items       []rssItem `xml:"item"`
+	XMLName       xml.Name  `xml:"channel"`
+	Title         string    `xml:"title"`
+	Link          string    `xml:"link"`
+	AtomLink      atomLink  `xml:"atom:link"`
+	Description   string    `xml:"description"`
+	Language      string    `xml:"language,omitempty"`
+	Generator     string    `xml:"generator,omitempty"`
+	LastBuildDate string    `xml:"lastBuildDate,omitempty"`
+	PubDate       string    `xml:"pubDate,omitempty"`
+	Items         []rssItem `xml:"item"`
 }
 
 type rssItem struct {
-	Title   string `xml:"title"`
-	Link    string `xml:"link"`
-	PubDate string `xml:"pubDate,omitempty"`
-	GUID    string `xml:"guid"`
+	Title       string  `xml:"title"`
+	Link        string  `xml:"link"`
+	Description cdata   `xml:"description"`
+	PubDate     string  `xml:"pubDate,omitempty"`
+	GUID        rssGUID `xml:"guid"`
 }
 
 type rssFeed struct {
 	XMLName xml.Name   `xml:"rss"`
 	Version string     `xml:"version,attr"`
+	AtomNS  string     `xml:"xmlns:atom,attr"`
 	Channel rssChannel `xml:"channel"`
 }
 
@@ -565,9 +596,12 @@ func (sb *SiteBuilder) generateRSSFeeds(pages []pageEntry) error {
 		}
 
 		feedLink := sb.siteURL
+		feedPathRel := "feed.xml"
 		if dir != "" {
 			feedLink = sb.siteURL + "/" + dir
+			feedPathRel = dir + "/feed.xml"
 		}
+		feedURL := sb.siteURL + "/" + feedPathRel
 
 		var items []rssItem
 		for _, e := range entries {
@@ -575,10 +609,17 @@ func (sb *SiteBuilder) generateRSSFeeds(pages []pageEntry) error {
 			item := rssItem{
 				Title: e.Title,
 				Link:  pageURL,
-				GUID:  pageURL,
+				GUID:  rssGUID{Value: pageURL, IsPermaLink: true},
+			}
+			if e.Meta != nil && e.Meta.SocialDescription != "" {
+				item.Description = cdata{Value: e.Meta.SocialDescription}
+			} else if excerpt := htmlExcerpt(e.HtmlContent, 280); excerpt != "" {
+				item.Description = cdata{Value: excerpt}
+			} else {
+				item.Description = cdata{Value: e.Title}
 			}
 			if e.Date != "" {
-				if t, err := time.Parse("2006-01-02", e.Date); err == nil {
+				if t, ok := types.ParseDate(e.Date); ok {
 					item.PubDate = t.Format(time.RFC1123Z)
 				}
 			}
@@ -587,16 +628,21 @@ func (sb *SiteBuilder) generateRSSFeeds(pages []pageEntry) error {
 
 		feed := rssFeed{
 			Version: "2.0",
+			AtomNS:  "http://www.w3.org/2005/Atom",
 			Channel: rssChannel{
 				Title:       feedTitle,
 				Link:        feedLink,
+				AtomLink:    atomLink{Href: feedURL, Rel: "self", Type: "application/rss+xml"},
 				Description: feedTitle,
+				Language:    "en",
+				Generator:   "pumice",
 				Items:       items,
 			},
 		}
 
 		if len(items) > 0 {
 			feed.Channel.PubDate = items[0].PubDate
+			feed.Channel.LastBuildDate = items[0].PubDate
 		}
 
 		feedPath := filepath.Join(sb.buildDir, dir, "feed.xml")
@@ -630,7 +676,11 @@ func (sb *SiteBuilder) generateSitemap(pages []pageEntry) error {
 		pageURL := sb.siteURL + "/" + strings.TrimSuffix(p.HtmlPath, ".html")
 		u := sitemapURL{Loc: pageURL}
 		if p.Date != "" {
-			u.LastMod = p.Date
+			// Sitemaps require W3C Datetime (ISO 8601); normalize from the
+			// DD-MM-YYYY frontmatter convention.
+			if t, ok := types.ParseDate(p.Date); ok {
+				u.LastMod = t.Format("2006-01-02")
+			}
 		}
 		urls = append(urls, u)
 	}
@@ -666,6 +716,24 @@ func (sb *SiteBuilder) generateSitemap(pages []pageEntry) error {
 	return nil
 }
 
+// ── robots.txt ───────────────────────────────────────────────────
+
+func (sb *SiteBuilder) generateRobots() error {
+	var buf strings.Builder
+	buf.WriteString("User-agent: *\n")
+	buf.WriteString("Allow: /\n")
+	if sb.siteURL != "" {
+		buf.WriteString("\nSitemap: " + sb.siteURL + "/sitemap.xml\n")
+	}
+
+	robotsPath := filepath.Join(sb.buildDir, "robots.txt")
+	if err := os.WriteFile(robotsPath, []byte(buf.String()), 0644); err != nil {
+		return fmt.Errorf("generating robots.txt: %w", err)
+	}
+	fmt.Printf("Generated: %s\n", robotsPath)
+	return nil
+}
+
 // ── 404 page ─────────────────────────────────────────────────────
 
 func (sb *SiteBuilder) generate404() error {
@@ -685,6 +753,39 @@ func (sb *SiteBuilder) generate404() error {
 }
 
 // ── Shared helpers ───────────────────────────────────────────────
+
+// htmlExcerpt strips tags from rendered HTML and returns a plain-text lead of
+// at most maxLen characters, truncated on a word boundary. Used for RSS item
+// descriptions when no explicit socialDescription is set.
+func htmlExcerpt(htmlContent string, maxLen int) string {
+	var b strings.Builder
+	inTag := false
+	for _, r := range htmlContent {
+		switch {
+		case r == '<':
+			inTag = true
+		case r == '>':
+			inTag = false
+			b.WriteRune(' ') // keep word separation across block tags
+		case !inTag:
+			b.WriteRune(r)
+		}
+	}
+
+	text := strings.TrimSpace(strings.Join(strings.Fields(html.UnescapeString(b.String())), " "))
+	if text == "" {
+		return ""
+	}
+	if len(text) <= maxLen {
+		return text
+	}
+
+	cut := text[:maxLen]
+	if idx := strings.LastIndex(cut, " "); idx > 0 {
+		cut = cut[:idx]
+	}
+	return strings.TrimSpace(cut) + "…"
+}
 
 func sortEntriesByDate(entries []pageEntry) {
 	sort.Slice(entries, func(i, j int) bool {
@@ -721,14 +822,15 @@ func (sb *SiteBuilder) renderListing(dir string, entries []pageEntry) string {
 		buf.WriteString(processor.EscapeHTML(entry.Title))
 		buf.WriteString(`</span></a>`)
 
-		if entry.Date != "" || len(entry.Tags) > 0 {
+		visibleTags := slug.VisibleTags(dir, entry.Tags)
+		if entry.Date != "" || len(visibleTags) > 0 {
 			buf.WriteString(`<div class="listing-meta">`)
 			if entry.Date != "" {
 				buf.WriteString(`<span class="listing-date">`)
 				buf.WriteString(entry.Date)
 				buf.WriteString(`</span>`)
 			}
-			for _, tag := range entry.Tags {
+			for _, tag := range visibleTags {
 				buf.WriteString(`<code class="page-tag">`)
 				buf.WriteString(processor.EscapeHTML(tag))
 				buf.WriteString(`</code>`)
